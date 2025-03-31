@@ -1,20 +1,194 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
+    android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#000000"
     tools:context=".MainActivity">
 
+    <!-- Título "Sensors" -->
     <TextView
-        android:id="@+id/textview"
+        android:id="@+id/titleText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="24dp"
+        android:text="Sensors"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- Canto superior direito: ícone ou outro item contextual -->
+
+    <!-- Indicador de Stress -->
+
+    <Button
+        android:id="@+id/historyButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_gravity="top|end"
+        android:layout_marginStart="24dp"
+
+        android:layout_marginTop="18dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="24dp"
+        android:background="@android:color/transparent"
+        android:text="History"
+        android:textColor="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/stressLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stress Level"
+        android:textColor="#AAAAAA"
+        android:textSize="18sp"
+        android:layout_below="@id/titleText"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="40dp" />
+
+    <FrameLayout
+        android:id="@+id/stressIndicatorFrame"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/stressLabel"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="15dp">
+
+        <!-- Semi-circular progress indicator (custom view) -->
+        <com.example.myapplication.SemiCircularProgressBar
+            android:id="@+id/semiCircularProgress"
+            android:layout_width="200dp"
+            android:layout_height="100dp" />
+
+        <!-- The Stress Value text on top -->
+        <TextView
+            android:id="@+id/stressValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center"
+            android:text="52"
+            android:textColor="#FF4C4C"
+            android:textSize="54sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <!-- Única LinearLayout para os 3 sensores -->
+
+
+    <LinearLayout
+        android:id="@+id/three"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/two"
+        android:layout_marginTop="42dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <!-- HRV Sensor -->
+        <TextView
+            android:id="@+id/helpfulText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="It may be wise to take a breather:\nhere's how to do that \ninsert advice here"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/two"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/sensorContainer"
+        android:layout_marginTop="47dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <!-- HRV Sensor -->
+        <TextView
+            android:id="@+id/StressText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="You are feeling"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/IsStressedText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="STRESSED"
+            android:textColor="#FF4C4C"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/sensorContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/stressIndicatorFrame"
+        android:layout_marginTop="25dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <!-- HRV Sensor -->
+        <TextView
+            android:id="@+id/hrvSensor"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="HRV&#10;42 ms"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- Skin Temperature Sensor -->
+        <TextView
+            android:id="@+id/skinTempSensor"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Skin Temp&#10;94.6°F"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- Respiratory Rate Sensor -->
+        <TextView
+            android:id="@+id/respRateSensor"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Resp. Rate&#10;16 bpm"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/settingsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Settings"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#333333"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="32dp" />
+
+
+</RelativeLayout>
