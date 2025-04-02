@@ -1,11 +1,37 @@
-import numpy as np
+import time
+from bitalino import BITalino
 
-# Persistent variable to hold the current array
-current_array = np.array([])
+def start_bitalino_service(mac_address, running_time=5, batteryThreshold=30, samplingRate=1000, nSamples=10):
+    acqChannels = [0, 1, 2, 3, 4, 5]
+    digitalOutput_on = [1, 1]
+    digitalOutput_off = [0, 0]
 
-def add_one():
-    """Appends the value 1 to the current array and returns the updated array."""
-    global current_array
-    # Append a new 1 to the array
-    current_array = np.append(current_array, 1)
-    return current_array
+    # Connect to BITalino using the passed MAC address.
+    device = BITalino(mac_address)
+
+    # Set battery threshold.
+    device.battery(batteryThreshold)
+
+    print("BITalino version:", device.version())
+
+    # Start acquisition.
+    device.start(samplingRate, acqChannels)
+
+    start = time.time()
+    end = time.time()
+    while (end - start) < running_time:
+        # Read samples.
+        print(device.read(nSamples))
+        end = time.time()
+
+    # Turn BITalino LED and buzzer on.
+    device.trigger(digitalOutput_on)
+    time.sleep(running_time)
+    # Turn BITalino LED and buzzer off.
+    device.trigger(digitalOutput_off)
+
+    # Stop acquisition and close the connection.
+    device.stop()
+    device.close()
+
+    return "BITalino service completed"
