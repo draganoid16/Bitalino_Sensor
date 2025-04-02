@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -54,6 +55,13 @@ public class MainActivity extends AppCompatActivity {
         ObjectAnimator progressAnimator = ObjectAnimator.ofInt(semiCircularProgress, "progress", 0, 52);
         progressAnimator.setDuration(2000); // Animation duration in milliseconds.
         progressAnimator.start();
+
+        Button settingsButton = findViewById(R.id.settingsButton);
+
+        settingsButton.setOnClickListener(view -> {
+            Intent intent = new Intent(MainActivity.this, com.example.myapplication.SettingsActivity.class);
+            startActivity(intent);
+        });
 
         // Initialize the Bluetooth adapter.
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
