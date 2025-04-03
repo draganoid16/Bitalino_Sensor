@@ -12,17 +12,18 @@ def start_bitalino_service(mac_address, running_time=5, batteryThreshold=30, sam
     # Set battery threshold.
     device.battery(batteryThreshold)
 
-    print("BITalino version:", device.version())
+    version = device.version()
+    print("BITalino version:", version)
 
     # Start acquisition.
     device.start(samplingRate, acqChannels)
 
-    start = time.time()
-    end = time.time()
-    while (end - start) < running_time:
-        # Read samples.
-        print(device.read(nSamples))
-        end = time.time()
+    start_time = time.time()
+    samples = []
+    while (time.time() - start_time) < running_time:
+        sample_data = device.read(nSamples)
+        print(sample_data)
+        samples.append(sample_data)
 
     # Turn BITalino LED and buzzer on.
     device.trigger(digitalOutput_on)
@@ -34,4 +35,4 @@ def start_bitalino_service(mac_address, running_time=5, batteryThreshold=30, sam
     device.stop()
     device.close()
 
-    return "BITalino service completed"
+    return "Samples: " + str(samples)

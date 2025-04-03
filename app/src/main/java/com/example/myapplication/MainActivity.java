@@ -3,13 +3,14 @@ package com.example.myapplication;
 import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -24,6 +25,9 @@ import androidx.core.view.WindowInsetsCompat;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
+
+import java.io.File;
+import java.io.FileOutputStream;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -50,16 +54,15 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Animate the custom semi-circular progress bar.
-        // Make sure your layout includes a view with ID "semiCircularProgress" of type SemiCircularProgressBar.
+        // Ensure your layout contains a view with ID "semiCircularProgress" (of type SemiCircularProgressBar).
         SemiCircularProgressBar semiCircularProgress = findViewById(R.id.semiCircularProgress);
         ObjectAnimator progressAnimator = ObjectAnimator.ofInt(semiCircularProgress, "progress", 0, 52);
         progressAnimator.setDuration(2000); // Animation duration in milliseconds.
         progressAnimator.start();
 
         Button settingsButton = findViewById(R.id.settingsButton);
-
         settingsButton.setOnClickListener(view -> {
-            Intent intent = new Intent(MainActivity.this, com.example.myapplication.SettingsActivity.class);
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivity(intent);
         });
 
@@ -105,7 +108,6 @@ public class MainActivity extends AppCompatActivity {
      */
     private void requestRequiredPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Request both legacy location permission and new Bluetooth permissions.
             ActivityCompat.requestPermissions(this,
                     new String[]{
                             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -122,16 +124,14 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Checks if Bluetooth is enabled. If not, requests the user to enable it.
-     * If enabled, launches the device picker.
+     * If enabled, launches the custom device picker.
      */
     private void checkBluetoothEnabled() {
         if (!bluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            // For Android 12+, check for BLUETOOTH_CONNECT permission.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
                         != PackageManager.PERMISSION_GRANTED) {
-                    // Permissions will be requested in onRequestPermissionsResult.
                     return;
                 }
             }
@@ -142,16 +142,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Launches the system Bluetooth device picker.
-     * Note: This uses an undocumented intent and may not work on all devices.
+     * Launches the custom device picker activity.
      */
     private void launchDevicePicker() {
-        Intent intent = new Intent("android.bluetooth.devicepicker.action.LAUNCH");
-        intent.putExtra("android.bluetooth.devicepicker.extra.NEED_AUTH", false);
-        intent.putExtra("android.bluetooth.devicepicker.extra.FILTER_TYPE", 1); // 1 for classic Bluetooth devices.
-        intent.putExtra("android.bluetooth.devicepicker.extra.SELECT_DISCOVERED", true);
-        intent.putExtra("android.bluetooth.devicepicker.extra.LAUNCH_PACKAGE", getPackageName());
-        intent.putExtra("android.bluetooth.devicepicker.extra.DEVICE_PICKER_LAUNCH_CLASS", MainActivity.class.getName());
+        Intent intent = new Intent(MainActivity.this, DevicePickerActivity.class);
         startActivityForResult(intent, REQUEST_CODE_DEVICE_PICKER);
     }
 
@@ -180,7 +174,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        // Handle result for enabling Bluetooth.
         if (requestCode == REQUEST_ENABLE_BT) {
             if (resultCode == RESULT_OK) {
                 launchDevicePicker();
@@ -188,22 +181,47 @@ public class MainActivity extends AppCompatActivity {
                 Log.e("MainActivity", "Bluetooth not enabled. The app cannot proceed.");
                 Toast.makeText(this, "Bluetooth not enabled. The app cannot proceed.", Toast.LENGTH_SHORT).show();
             }
-        }
-        // Handle result from the device picker.
-        else if (requestCode == REQUEST_CODE_DEVICE_PICKER && data != null) {
-            BluetoothDevice device = data.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-            if (device != null) {
-                String macAddress = device.getAddress();
-                Log.d("MainActivity", "Selected device MAC: " + macAddress);
+        } else if (requestCode == REQUEST_CODE_DEVICE_PICKER) {
+            if (data != null) {
+                String macAddress = data.getStringExtra("selected_device_mac");
+                if (macAddress != null) {
+                    Log.d("MainActivity", "Selected device MAC: " + macAddress);
+                    TextView txTextView = findViewById(R.id.helpfulText);
+                    txTextView.setText(macAddress);
 
-                // Initialize Chaquopy and call the Python function.
-                if (!Python.isStarted()) {
-                    Python.start(new AndroidPlatform(this));
+                    // Run Python BITalino code in a background thread.
+                    new Thread(() -> {
+                        try {
+                            if (!Python.isStarted()) {
+                                Python.start(new AndroidPlatform(MainActivity.this));
+                            }
+                            Python py = Python.getInstance();
+                            PyObject bitalinoModule = py.getModule("test");
+                            // Call the function and capture its return value.
+                            PyObject result = bitalinoModule.callAttr("start_bitalino_service", macAddress);
+                            String resultStr = result.toString();
+                            Log.d("MainActivity", "Python result: " + resultStr);
+
+                            // Write the captured data to a text file.
+                            File file = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "bitalino_data.txt");
+                            try (FileOutputStream fos = new FileOutputStream(file)) {
+                                fos.write(resultStr.getBytes());
+                            }
+
+                            runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                                    "Data saved to " + file.getAbsolutePath(),
+                                    Toast.LENGTH_LONG).show());
+                        } catch (Exception e) {
+                            Log.e("MainActivity", "Error calling python code", e);
+                        }
+                    }).start();
+                } else {
+                    Log.e("MainActivity", "No device MAC found in result.");
+                    Toast.makeText(this, "No device selected.", Toast.LENGTH_SHORT).show();
                 }
-                Python py = Python.getInstance();
-                PyObject bitalinoModule = py.getModule("test");
-                PyObject result = bitalinoModule.callAttr("start_bitalino_service", macAddress);
-                Log.d("MainActivity", "Python result: " + result.toString());
+            } else {
+                Log.e("MainActivity", "Device picker returned no data.");
+                Toast.makeText(this, "No data returned from device picker.", Toast.LENGTH_SHORT).show();
             }
         }
     }
