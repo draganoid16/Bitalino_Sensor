@@ -44,6 +44,7 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+    implementation 'info.plux.api:api:1.5.2'
 }
 
 // Chaquopy configuration block
@@ -51,6 +52,10 @@ chaquopy {
     defaultConfig {
         pip {
             install "numpy"
+            install "scientisst-sense"
+            install "pyserial"
+            install "pylsl"
+            install "pydbus"
         }
     }
 }

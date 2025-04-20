@@ -17,5 +17,11 @@
     <ListView
         android:id="@+id/deviceListView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="603dp" />
+
+    <Button
+        android:id="@+id/refreshButton"
+        android:layout_width="match_parent"
+        android:layout_height="49dp"
+        android:text="Refresh" />
 </LinearLayout>

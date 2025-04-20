@@ -2,19 +2,25 @@ package com.example.myapplication;
 
 import android.Manifest;
 import android.animation.ObjectAnimator;
-import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.provider.MediaStore;
+import android.text.InputType;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
+import android.widget.EditText;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -22,207 +28,224 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
+import com.chaquo.python.PyObject;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG       = "MainActivity";
+    private static final int    REQ_PICK  = 1;
+    private static final int    REQ_PERM  = 2;
 
-    private static final int REQUEST_CODE_DEVICE_PICKER = 1;
-    private static final int REQUEST_ENABLE_BT = 2;
-    private static final int REQUEST_PERMISSION_BLUETOOTH = 3;
-    private BluetoothAdapter bluetoothAdapter;
+    private ConnectorFactory.DeviceType selectedType;
+    private DeviceConnector connector;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Apply edge-to-edge insets.
+        setupEdgeToEdgeInsets();
+        initializePython();
+        animateProgressBar();
+        setupSettingsButton();
+
+        Button bitalinoBtn   = findViewById(R.id.bitalinoButton);
+        Button scientisstBtn = findViewById(R.id.scientisstButton);
+
+        bitalinoBtn.setOnClickListener(v -> chooseAndLaunch(ConnectorFactory.DeviceType.BITALINO));
+        scientisstBtn.setOnClickListener(v -> chooseAndLaunch(ConnectorFactory.DeviceType.SCIENTIST));
+    }
+
+    private void chooseAndLaunch(ConnectorFactory.DeviceType type) {
+        selectedType = type;
+        if (checkPermissions()) {
+            launchPicker();
+        }
+    }
+
+    private void setupEdgeToEdgeInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.mainLayout), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            Insets b = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(b.left, b.top, b.right, b.bottom);
             return insets;
         });
+    }
 
-        // Start Chaquopy Python if not already started.
+    private void initializePython() {
         if (!Python.isStarted()) {
             Python.start(new AndroidPlatform(this));
         }
-
-        // Animate the custom semi-circular progress bar.
-        // Ensure your layout contains a view with ID "semiCircularProgress" (of type SemiCircularProgressBar).
-        SemiCircularProgressBar semiCircularProgress = findViewById(R.id.semiCircularProgress);
-        ObjectAnimator progressAnimator = ObjectAnimator.ofInt(semiCircularProgress, "progress", 0, 52);
-        progressAnimator.setDuration(2000); // Animation duration in milliseconds.
-        progressAnimator.start();
-
-        Button settingsButton = findViewById(R.id.settingsButton);
-        settingsButton.setOnClickListener(view -> {
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivity(intent);
-        });
-
-        // Initialize the Bluetooth adapter.
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (bluetoothAdapter == null) {
-            Log.e("MainActivity", "Bluetooth is not supported on this device.");
-            Toast.makeText(this, "Bluetooth is not supported on this device.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Check and request necessary permissions.
-        if (!hasRequiredPermissions()) {
-            requestRequiredPermissions();
-        } else {
-            checkBluetoothEnabled();
-        }
     }
 
-    /**
-     * Checks if the required permissions are granted.
-     */
-    private boolean hasRequiredPermissions() {
-        // For pre-Android 12 devices, check location permission.
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return false;
+    private void animateProgressBar() {
+        ObjectAnimator.ofInt(
+                findViewById(R.id.semiCircularProgress),
+                "progress", 0, 52
+        ).setDuration(2000).start();
+    }
+
+    private void setupSettingsButton() {
+        findViewById(R.id.settingsButton)
+                .setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+    }
+
+    private boolean checkPermissions() {
+        boolean ok = true;
+        // pre‑Android 12 needs LOCATION to discover
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            ok &= ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED;
         }
-        // For Android 12 and above, check new Bluetooth permissions.
+        // Android 12+ needs SCAN & CONNECT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-                    != PackageManager.PERMISSION_GRANTED ||
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                            != PackageManager.PERMISSION_GRANTED) {
-                return false;
+            ok &= ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
+                    == PackageManager.PERMISSION_GRANTED
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        if (!ok) {
+            String[] perms;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                perms = new String[]{ Manifest.permission.ACCESS_FINE_LOCATION };
+            } else {
+                perms = new String[]{
+                        Manifest.permission.BLUETOOTH_SCAN,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                };
             }
+            ActivityCompat.requestPermissions(this, perms, REQ_PERM);
         }
-        return true;
-    }
-
-    /**
-     * Requests the necessary permissions.
-     */
-    private void requestRequiredPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.BLUETOOTH_SCAN,
-                            Manifest.permission.BLUETOOTH_CONNECT
-                    },
-                    REQUEST_PERMISSION_BLUETOOTH);
-        } else {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
-                    REQUEST_PERMISSION_BLUETOOTH);
-        }
-    }
-
-    /**
-     * Checks if Bluetooth is enabled. If not, requests the user to enable it.
-     * If enabled, launches the custom device picker.
-     */
-    private void checkBluetoothEnabled() {
-        if (!bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                        != PackageManager.PERMISSION_GRANTED) {
-                    return;
-                }
-            }
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        } else {
-            launchDevicePicker();
-        }
-    }
-
-    /**
-     * Launches the custom device picker activity.
-     */
-    private void launchDevicePicker() {
-        Intent intent = new Intent(MainActivity.this, DevicePickerActivity.class);
-        startActivityForResult(intent, REQUEST_CODE_DEVICE_PICKER);
+        return ok;
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_PERMISSION_BLUETOOTH) {
-            boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-            if (allGranted) {
-                checkBluetoothEnabled();
+    public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        if (req == REQ_PERM) {
+            boolean granted = true;
+            for (int r : results) if (r != PackageManager.PERMISSION_GRANTED) granted = false;
+            if (granted && selectedType != null) {
+                launchPicker();
             } else {
-                Log.e("MainActivity", "Required Bluetooth permissions are not granted.");
-                Toast.makeText(this, "Bluetooth permissions are required for the app to function.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Bluetooth permissions required", Toast.LENGTH_LONG).show();
+            }
+        } else {
+            super.onRequestPermissionsResult(req, perms, results);
+        }
+    }
+
+    private void launchPicker() {
+        startActivityForResult(
+                new Intent(this, DevicePickerActivity.class),
+                REQ_PICK
+        );
+    }
+
+    @Override
+    protected void onActivityResult(int rc, int rs, @Nullable Intent data) {
+        super.onActivityResult(rc, rs, data);
+        if (rc == REQ_PICK && rs == RESULT_OK && data != null) {
+            String mac = data.getStringExtra("selected_device_mac");
+            if (mac != null) {
+                connectAndRunWithPrompt(mac);
+            } else {
+                Toast.makeText(this, "No device selected", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
+    private void connectAndRunWithPrompt(String mac) {
+        // 1) ask user for duration
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setHint("Seconds");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Acquisition Duration")
+                .setMessage("How many seconds should we record?")
+                .setView(input)
+                .setPositiveButton("Start", (dlg, which) -> {
+                    // parse the seconds (default to 10 if invalid)
+                    int secs = 10;
+                    try {
+                        secs = Integer.parseInt(input.getText().toString().trim());
+                    } catch (NumberFormatException ignored) {}
+
+                    // 2) build the work Intent
+                    Intent work = new Intent(this, AcquireService.class);
+                    work.putExtra(AcquireService.EXTRA_TYPE,     selectedType);
+                    work.putExtra(AcquireService.EXTRA_MAC,      mac);
+                    work.putExtra(AcquireService.EXTRA_DURATION, secs);
+
+                    // 3) enqueue it
+                    AcquireService.enqueueWork(this, work);
+
+                    Toast.makeText(this,
+                            "Recording in background for " + secs + "s",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+
+    /** write out data. */
+    public void saveToDownloads(String data) {
+        try {
+            ContentValues v = new ContentValues();
+            v.put(MediaStore.Downloads.DISPLAY_NAME, "device_data.txt");
+            v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                v.put(MediaStore.Downloads.RELATIVE_PATH, "Download/");
+            } else {
+                String p = Environment
+                        .getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        .getAbsolutePath();
+                v.put(MediaStore.Downloads.DATA, p + "/device_data.txt");
+            }
+            Uri u = null;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+            }
+            try (OutputStream out = getContentResolver().openOutputStream(u)) {
+                out.write(data.getBytes("UTF-8"));
+            }
+            Toast.makeText(this, "Saved to Downloads", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Log.e(TAG, "Save error", e);
+            Toast.makeText(this, "Save failed", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Helper your Python-based connectors call. */
+    public String runPythonService(String mac) {
+        try {
+            Python py = Python.getInstance();
+            PyObject mod = py.getModule(
+                    selectedType == ConnectorFactory.DeviceType.BITALINO
+                            ? "bitalino" : "scientisst_service"
+            );
+            if (selectedType == ConnectorFactory.DeviceType.BITALINO) {
+                return mod.callAttr("start_bitalino_service", mac).toString();
+            } else {
+                // for ScientISST connector, pass in (mac, rate, channels, duration) etc.
+                return mod.callAttr("start_scientisst_service", mac).toString();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Python error", e);
+            return "";
+        }
+    }
+
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == REQUEST_ENABLE_BT) {
-            if (resultCode == RESULT_OK) {
-                launchDevicePicker();
-            } else {
-                Log.e("MainActivity", "Bluetooth not enabled. The app cannot proceed.");
-                Toast.makeText(this, "Bluetooth not enabled. The app cannot proceed.", Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == REQUEST_CODE_DEVICE_PICKER) {
-            if (data != null) {
-                String macAddress = data.getStringExtra("selected_device_mac");
-                if (macAddress != null) {
-                    Log.d("MainActivity", "Selected device MAC: " + macAddress);
-                    TextView txTextView = findViewById(R.id.helpfulText);
-                    txTextView.setText(macAddress);
-
-                    // Run Python BITalino code in a background thread.
-                    new Thread(() -> {
-                        try {
-                            if (!Python.isStarted()) {
-                                Python.start(new AndroidPlatform(MainActivity.this));
-                            }
-                            Python py = Python.getInstance();
-                            PyObject bitalinoModule = py.getModule("test");
-                            // Call the function and capture its return value.
-                            PyObject result = bitalinoModule.callAttr("start_bitalino_service", macAddress);
-                            String resultStr = result.toString();
-                            Log.d("MainActivity", "Python result: " + resultStr);
-
-                            // Write the captured data to a text file.
-                            File file = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "bitalino_data.txt");
-                            try (FileOutputStream fos = new FileOutputStream(file)) {
-                                fos.write(resultStr.getBytes());
-                            }
-
-                            runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                                    "Data saved to " + file.getAbsolutePath(),
-                                    Toast.LENGTH_LONG).show());
-                        } catch (Exception e) {
-                            Log.e("MainActivity", "Error calling python code", e);
-                        }
-                    }).start();
-                } else {
-                    Log.e("MainActivity", "No device MAC found in result.");
-                    Toast.makeText(this, "No device selected.", Toast.LENGTH_SHORT).show();
-                }
-            } else {
-                Log.e("MainActivity", "Device picker returned no data.");
-                Toast.makeText(this, "No data returned from device picker.", Toast.LENGTH_SHORT).show();
-            }
+    protected void onDestroy() {
+        super.onDestroy();
+        if (connector != null) {
+            try { connector.disconnect(); }
+            catch (Exception ignored) {}
         }
     }
 }

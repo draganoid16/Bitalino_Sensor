@@ -81,29 +81,6 @@
 
 
     <LinearLayout
-        android:id="@+id/three"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/two"
-        android:layout_marginTop="42dp"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="16dp">
-
-        <!-- HRV Sensor -->
-        <TextView
-            android:id="@+id/helpfulText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="It may be wise to take a breather:\nhere's how to do that \ninsert advice here"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp" />
-
-    </LinearLayout>
-
-    <LinearLayout
         android:id="@+id/two"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -189,6 +166,26 @@
         android:layout_centerHorizontal="true"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/bitalinoButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/settingsButton"
+        android:layout_marginEnd="94dp"
+        android:layout_marginBottom="73dp"
+        android:layout_toStartOf="@+id/scientisstButton"
+        android:text="Bitalino" />
+
+    <Button
+        android:id="@+id/scientisstButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/settingsButton"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="43dp"
+        android:layout_marginBottom="74dp"
+        android:text="Scientisst" />
 
 
 </RelativeLayout>
