@@ -172,8 +172,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_above="@+id/settingsButton"
-        android:layout_marginEnd="94dp"
-        android:layout_marginBottom="73dp"
+        android:layout_marginEnd="98dp"
+        android:layout_marginBottom="149dp"
         android:layout_toStartOf="@+id/scientisstButton"
         android:text="Bitalino" />
 
@@ -183,9 +183,31 @@
         android:layout_height="wrap_content"
         android:layout_above="@+id/settingsButton"
         android:layout_alignParentEnd="true"
-        android:layout_marginEnd="43dp"
-        android:layout_marginBottom="74dp"
+        android:layout_marginEnd="47dp"
+        android:layout_marginBottom="149dp"
         android:text="Scientisst" />
+
+    <Button
+        android:id="@+id/startCaptureButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/settingsButton"
+        android:layout_marginEnd="-4dp"
+        android:layout_marginBottom="36dp"
+        android:layout_toStartOf="@+id/settingsButton"
+        android:backgroundTint="#4CAF50"
+        android:text="Start Capture" />
+
+    <Button
+        android:id="@+id/stopCaptureButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/settingsButton"
+        android:layout_marginStart="95dp"
+        android:layout_marginBottom="34dp"
+        android:layout_toEndOf="@+id/startCaptureButton"
+        android:backgroundTint="#E70606"
+        android:text="Stop Capture" />
 
 
 </RelativeLayout>

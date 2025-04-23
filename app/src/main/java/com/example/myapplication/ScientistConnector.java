@@ -11,6 +11,7 @@ public class ScientistConnector implements DeviceConnector {
     private Context context;
     private String mac;
     private double durationSecs;
+    private String latestData;            // <-- store the result here
 
     /** Must be set before start() */
     public void setDuration(double secs) {
@@ -25,38 +26,39 @@ public class ScientistConnector implements DeviceConnector {
         }
     }
 
-
     @Override
     public void connect(String mac) {
         this.mac = mac;
         Log.d(TAG, "ScientISSTConnector: MAC=" + mac);
-        // sense.py auto‑connects in start_scientisst_service()
     }
 
     @Override
     public void start() {
         Python py = Python.getInstance();
         PyObject mod = py.getModule("scientisst_service");
-        // synchronous call that blocks until duration elapses
         PyObject result = mod.callAttr(
                 "start_scientisst_service",
                 mac,
-                1000,                               // sampling rate
+                1000,                                  // sampling rate
                 py.getBuiltins().get("list").call(1,2,3,4,5,6), // channels
                 durationSecs
         );
-        String text = result.toString();
-        ((MainActivity) context).saveToDownloads(text);
-        Log.d(TAG, "ScientISST data saved");
+        latestData = result.toString();  // buffer it
     }
 
     @Override
     public void stop() {
-        // wrapper already stops after duration
+        // nothing to do: the Python wrapper already stops after duration
     }
 
     @Override
     public void disconnect() {
         Log.d(TAG, "ScientISSTConnector: disconnected");
     }
+
+    /** exposed so AcquireService can save it **/
+    public String getCollectedData() {
+        return latestData != null ? latestData : "";
+    }
 }
+

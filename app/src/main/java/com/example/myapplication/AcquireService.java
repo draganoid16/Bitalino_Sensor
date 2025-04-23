@@ -1,117 +1,163 @@
 package com.example.myapplication;
 
-import android.content.ContentValues;
-import android.content.Context;
+import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
 import android.content.Intent;
+import android.content.ContentValues;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.Environment;
+import android.os.IBinder;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.core.app.JobIntentService;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
 
 import java.io.OutputStream;
 
-public class AcquireService extends JobIntentService {
+public class AcquireService extends Service {
+    private static final String TAG = "AcquireService";
 
-    private static final String TAG    = "AcquireService";
-    private static final int    JOB_ID = 123;
+    public static final String ACTION_START = "com.example.myapplication.ACTION_START_CAPTURE";
+    public static final String ACTION_STOP  = "com.example.myapplication.ACTION_STOP_CAPTURE";
 
-    public static final String EXTRA_TYPE     = "type";
-    public static final String EXTRA_MAC      = "mac";
-    public static final String EXTRA_DURATION = "duration";   // seconds
+    public static final String EXTRA_TYPE = "type";
+    public static final String EXTRA_MAC  = "mac";
+    public static final String EXTRA_USER = "userId";
+    public static final String EXTRA_HDR  = "header";
 
-    public static void enqueueWork(Context c, Intent i) {
-        enqueueWork(c, AcquireService.class, JOB_ID, i);
-    }
+    private DeviceConnector connector;
+    private String         userId;
+    private String         headerLine;
 
     @Override
-    protected void onHandleWork(@NonNull Intent in) {
-        var type = (ConnectorFactory.DeviceType) in.getSerializableExtra(EXTRA_TYPE);
-        String mac = in.getStringExtra(EXTRA_MAC);
-        int secs   = in.getIntExtra(EXTRA_DURATION, 5);
-
-        if (type != ConnectorFactory.DeviceType.BITALINO) {
-            Log.e(TAG, "Only BITalino handled here"); return;
+    public void onCreate() {
+        super.onCreate();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel chan = new NotificationChannel(
+                    "capture", "Data Capture", NotificationManager.IMPORTANCE_LOW
+            );
+            ((NotificationManager)getSystemService(NOTIFICATION_SERVICE))
+                    .createNotificationChannel(chan);
         }
-
-        BitalinoConnector conn = (BitalinoConnector) ConnectorFactory.create(type);
-        conn.initialize(this);
-
-        Handler ui = new Handler(Looper.getMainLooper());
-
-        try {
-            /* 1 ▸ connect on UI thread */
-            ui.post(() -> { try { conn.connect(mac); } catch (Exception e){ Log.e(TAG,"connect",e);} });
-
-            /* 2 ▸ wait until READY (max 8 s) */
-            if (!conn.waitUntilReady(8_000)) {
-                Log.e(TAG, "Device never became READY");
-                return;
-
-            }
-
-            /* 3 ▸ start acquisition on UI thread */
-            ui.postDelayed(() -> {
-                try {
-                    conn.start();
-                } catch (Exception e) {
-                    Log.e(TAG, "start()", e);
-                }
-            }, 250);
-
-            /* 4 ▸ keep worker thread alive */
-            Thread.sleep(secs * 1000L);
-
-            /* 5 ▸ stop + disconnect on UI thread */
-            ui.post(() -> {
-                try {
-                    conn.stop();
-                    conn.disconnect();
-                } catch (Exception e){ Log.e(TAG,"stop/disconnect",e); }
-            });
-
-            /* 6 ▸ persist data */
-            saveToDownloads(conn.getCollectedData());
-            Log.d(TAG, "Finished OK ("+secs+" s)");
-        }
-        catch (Exception e) { Log.e(TAG, "AcquireService fatal", e); }
     }
 
-    /* ---------- save helper ------------------------------------------------ */
+    @SuppressLint("ForegroundServiceType")
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent.getAction();
 
-    private void saveToDownloads(String data) {
-        if (data.isEmpty()) { Log.w(TAG,"No data captured"); return; }
+        if (ACTION_START.equals(action)) {
+            ConnectorFactory.DeviceType type =
+                    (ConnectorFactory.DeviceType) intent.getSerializableExtra(EXTRA_TYPE);
+            String mac  = intent.getStringExtra(EXTRA_MAC);
+            userId      = intent.getStringExtra(EXTRA_USER);
+            headerLine  = intent.getStringExtra(EXTRA_HDR);
 
+            // 1) Build and fire off our foreground notification
+            Notification n = new NotificationCompat.Builder(this, "capture")
+                    .setContentTitle("Capturing data…")
+                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setOngoing(true)
+                    .build();
+            startForeground(42, n);
+
+            // 2) Initialize connector and start acquisition on background thread
+            connector = ConnectorFactory.create(type);
+            connector.initialize(this);
+            new Thread(() -> {
+                try {
+                    connector.connect(mac);
+                    Thread.sleep(2_000);
+
+                    connector.start();
+                } catch (Exception e) {
+                    Log.e(TAG, "capture start failed", e);
+                    stopSelf();
+                }
+            }).start();
+
+            return START_STICKY;
+        }
+        else if (ACTION_STOP.equals(action)) {
+            // 3) Stop, disconnect, collect data, save, tear down
+            new Thread(() -> {
+                try {
+                    connector.stop();
+                    connector.disconnect();
+
+                    String data = "";
+                    if (connector instanceof BitalinoConnector) {
+                        data = ((BitalinoConnector)connector).getCollectedData();
+                    }
+                    else if (connector instanceof ScientistConnector) {
+                        data = ((ScientistConnector)connector).getCollectedData();
+                    }
+
+                    saveToDownloads(userId, headerLine + "\n" + data);
+
+                } catch (Exception e) {
+                    Log.e(TAG, "capture stop failed", e);
+                } finally {
+                    stopForeground(true);
+                    stopSelf();
+                }
+            }).start();
+
+            return START_NOT_STICKY;
+        }
+
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    /**
+     * Saves the CSV to Downloads/<userId>/bitalino_data.txt.
+     */
+    private void saveToDownloads(String userId, String csv) {
+        if (csv == null || csv.isEmpty()) {
+            Log.w(TAG, "No data to save");
+            return;
+        }
         try {
-            ContentValues v = new ContentValues();
-            v.put(MediaStore.Downloads.DISPLAY_NAME, "bitalino_data.txt");
-            v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                v.put(MediaStore.Downloads.RELATIVE_PATH, "Download/");
-
+            ContentValues cv = new ContentValues();
+            cv.put(MediaStore.Downloads.DISPLAY_NAME, "bitalino_data.txt");
+            cv.put(MediaStore.Downloads.MIME_TYPE,    "text/plain");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Downloads/<userId>/
+                cv.put(MediaStore.Downloads.RELATIVE_PATH, "Download/" + userId + "/");
+            }
             Uri uri = null;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 uri = getContentResolver()
-                        .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                        .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
             }
-
-            if (uri != null) try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-                out.write(data.getBytes());
+            if (uri != null) {
+                try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                    os.write(csv.getBytes("UTF-8"));
+                }
+                Log.d(TAG, "Saved to Downloads/" + userId + "/bitalino_data.txt");
             }
-            //show on UI
-            new Handler(Looper.getMainLooper()).post(
-                    () -> Toast.makeText(this,
-                            "Saved data to Downloads/bitalino_data.txt",
-                            Toast.LENGTH_LONG).show());
-
         } catch (Exception e) {
             Log.e(TAG, "saveToDownloads()", e);
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (connector != null) {
+            try { connector.disconnect(); }
+            catch (Exception ignored) {}
+        }
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 }

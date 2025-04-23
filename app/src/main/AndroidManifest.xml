@@ -9,7 +9,10 @@
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+
 
 
 
@@ -26,8 +29,9 @@
 
         <service
             android:name=".AcquireService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="false"/>
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
 
         <activity
             android:name=".MainActivity"

@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcelable;
 import android.util.Log;
 import android.widget.Toast;
@@ -69,7 +71,10 @@ public class BitalinoConnector implements DeviceConnector, OnDataAvailable {
 
         api.connect(mac);
         Log.d(TAG, "connect() invoked for " + mac);
-        Toast.makeText(ctx, "Connecting to BITalino…", Toast.LENGTH_SHORT).show();
+        new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(ctx, "Connected to BITalino: " + mac, Toast.LENGTH_LONG).show()
+        );
+
 
 
     }
@@ -102,7 +107,7 @@ public class BitalinoConnector implements DeviceConnector, OnDataAvailable {
 
     /* ------------------------------------------------------------ helpers   */
 
-    /** Block the caller until DEVICE_READY or timeout (ms) */
+    /** Block the caller until DEVICE_READY or timeout */
     public boolean waitUntilReady(long timeoutMs) {
         try { return readyLatch.await(timeoutMs, TimeUnit.MILLISECONDS); }
         catch (InterruptedException ignore) { return false; }
