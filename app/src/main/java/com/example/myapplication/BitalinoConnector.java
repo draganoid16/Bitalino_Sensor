@@ -121,7 +121,11 @@ public class BitalinoConnector implements DeviceConnector, OnDataAvailable {
     @Override
     public void onDataAvailable(Parcelable frame) {
         if (frame instanceof BITalinoFrame) {
-            String line = frame.toString();
+            String line = System.currentTimeMillis() + "\t" + ((BITalinoFrame) frame).getAnalog(0) + "\t" + ((BITalinoFrame) frame).getAnalog(1) + "\t" + ((BITalinoFrame) frame).getAnalog(2) + "\t"
+                    + ((BITalinoFrame) frame).getAnalog(3) + "\t" + ((BITalinoFrame) frame).getAnalog(4) + "\t" + ((BITalinoFrame) frame).getAnalog(5) +
+                    "\t" + ((BITalinoFrame) frame).getDigital(0) + "\t" + ((BITalinoFrame) frame).getDigital(1) + "\t" + ((BITalinoFrame) frame).getDigital(2) + "\t" + ((BITalinoFrame) frame).getDigital(3);
+
+            //String line = frame.toString();
             builder.append(line).append('\n');
             Log.v(TAG, "Frame " + line);
         }

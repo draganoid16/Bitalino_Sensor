@@ -137,6 +137,7 @@ public class AcquireService extends Service {
             }
             if (uri != null) {
                 try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                    os.write(("Timestamp:" + "\t" + "A1" +"\t" + "A2" + "\t" + "A3" + "\t" + "A4" + "\t" + "A5" + "\t" + "A6" + "\t" + "D1" + "\t" + "D2" + "\t" + "D3" + "\t" + "D4").getBytes("UTF-8"));
                     os.write(csv.getBytes("UTF-8"));
                 }
                 Log.d(TAG, "Saved to Downloads/" + userId + "/bitalino_data.txt");
