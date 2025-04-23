@@ -30,4 +30,5 @@ def start_scientisst_service(mac_address: str,
     dev.disconnect()
 
     # Serialize as text
+    print(f"Collected {len(frames)} frames"))
     return "\n".join(str(f) for f in frames)
